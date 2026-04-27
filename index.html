@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Dodge the Rocks - Adsterra Game</title>
+    <link rel="manifest" href="manifest.json">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+            overflow-x: hidden;
+        }
+        .ad-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            background: #0e0e1a;
+            padding: 6px 0;
+            overflow: hidden;
+        }
+        #gameCanvas {
+            border: 2px solid #0f3460;
+            border-radius: 10px;
+            background: #16213e;
+            display: block;
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+        }
+        .info {
+            margin: 10px 0;
+            font-size: 16px;
+            text-align: center;
+            padding: 0 10px;
+        }
+        @media (max-width: 500px) {
+            .info { font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ========== TOP AD (first Adsterra script) ========== -->
+    <div class="ad-container" id="top-ad">
+        <script type="text/javascript">
+            atOptions = {
+                'key' : '60dfc550c5774bcefe4917c8cee42759',
+                'format' : 'iframe',
+                'height' : 60,
+                'width' : 468,
+                'params' : {}
+            };
+        </script>
+        <script type="text/javascript" src="//www.topcreativeformat.com/60dfc550c5774bcefe4917c8cee42759/invoke.js"></script>
+    </div>
+
+    <!-- ========== GAME CANVAS ========== -->
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+
+    <!-- ========== BOTTOM AD (second Adsterra script) ========== -->
+    <div class="ad-container" id="bottom-ad">
+        <script async="async" data-cfasync="false" src="https://pl29248236.profitablecpmratenetwork.com/3ba3bdd2747e6352c83bfe040ce669a5/invoke.js"></script>
+        <div id="container-3ba3bdd2747e6352c83bfe040ce669a5"></div>
+    </div>
+
+    <!-- ========== CONTROLS INFO ========== -->
+    <div class="info">
+        <strong>🎮 Controls:</strong> Arrow Left / Arrow Right &nbsp;|&nbsp;
+        Restart: Press <strong>Enter</strong> after Game Over<br>
+        <small>On mobile: tap left/right half of the screen to move</small>
+    </div>
+
+    <!-- ========== GAME SCRIPT (all embedded, no external files) ========== -->
+    <script>
+        // ---------- AUDIO ASSETS (filenames match your downloads) ----------
+        const bgMusic = new Audio('moodmode-no-copyright-music-201745.mp3');
+        bgMusic.loop = true;
+        bgMusic.volume = 0.25;
+
+        const loseSound = new Audio('freesound_community-080047_lose_funny_retro_video-game-80925.mp3');
+        loseSound.volume = 0.7;
+
+        // ---------- CANVAS & CONTEXT ----------
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game constants
+        const PLAYER_SIZE = 40;
+        const PLAYER_SPEED = 10;
+        const OBSTACLE_SIZE = 30;
+        const OBSTACLE_SPEED = 5;
+        const SPAWN_INTERVAL = 30;        // frames between spawns (0.5 sec at 60fps)
+
+        // Game state
+        let playerX = (canvas.width - PLAYER_SIZE) / 2;
+        const playerY = canvas.height - PLAYER_SIZE - 20;
+        let obstacles = [];
+        let score = 0;
+        let gameOver = false;
+        let frameCount = 0;
+        let spawnCounter = 0;
+
+        // Input flags
+        let leftPressed = false;
+        let rightPressed = false;
+
+        // 🔧 Audio permission flag (prevents NotAllowedError)
+        let audioAllowed = false;   // false until user interacts
+
+        // ---------- START AUDIO ON FIRST INTERACTION ----------
+        function startAudio() {
+            if (!audioAllowed) {
+                bgMusic.play().catch(() => {});
+                audioAllowed = true;    // unlock all sounds
+            }
+        }
+
+        // ---------- EVENT LISTENERS ----------
+        // Keyboard
+        document.addEventListener('keydown', (e) => {
+            startAudio();   // unlock on first key press
+            if (gameOver) {
+                if (e.key === 'Enter') restartGame();
+                return;
+            }
+            if (e.key === 'ArrowLeft')  leftPressed = true;
+            if (e.key === 'ArrowRight') rightPressed = true;
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft')  leftPressed = false;
+            if (e.key === 'ArrowRight') rightPressed = false;
+        });
+        window.addEventListener('keydown', (e) => {
+            if (e.key.startsWith('Arrow')) e.preventDefault();
+        });
+
+        // Touch controls for mobile
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            startAudio();   // unlock on first touch
+            if (gameOver) {
+                restartGame();
+                return;
+            }
+            const rect = canvas.getBoundingClientRect();
+            const touchX = e.touches[0].clientX - rect.left;
+            const scaleX = canvas.width / rect.width;
+            const canvasX = touchX * scaleX;
+            if (canvasX < canvas.width / 2) {
+                leftPressed = true;
+            } else {
+                rightPressed = true;
+            }
+        });
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            leftPressed = false;
+            rightPressed = false;
+        });
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+        });
+
+        // Mouse click
+        canvas.addEventListener('click', startAudio);
+
+        // ---------- GAME FUNCTIONS ----------
+        function restartGame() {
+            playerX = (canvas.width - PLAYER_SIZE) / 2;
+            obstacles = [];
+            score = 0;
+            gameOver = false;
+            spawnCounter = 0;
+            loseSound.pause();
+            loseSound.currentTime = 0;
+        }
+
+        function spawnObstacle() {
+            const x = Math.random() * (canvas.width - OBSTACLE_SIZE);
+            obstacles.push({
+                x: x,
+                y: -OBSTACLE_SIZE,
+                width: OBSTACLE_SIZE,
+                height: OBSTACLE_SIZE
+            });
+        }
+
+        // ---------- UPDATE LOOP ----------
+        function update() {
+            if (gameOver) return;
+
+            if (leftPressed)  playerX = Math.max(0, playerX - PLAYER_SPEED);
+            if (rightPressed) playerX = Math.min(canvas.width - PLAYER_SIZE, playerX + PLAYER_SPEED);
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obs = obstacles[i];
+                obs.y += OBSTACLE_SPEED;
+
+                if (obs.y > canvas.height) {
+                    obstacles.splice(i, 1);
+                    continue;
+                }
+
+                // Collision
+                if (playerX < obs.x + obs.width &&
+                    playerX + PLAYER_SIZE > obs.x &&
+                    playerY < obs.y + obs.height &&
+                    playerY + PLAYER_SIZE > obs.y) {
+                    gameOver = true;
+                    // 🔧 Only play sound if audio is allowed
+                    if (audioAllowed) {
+                        loseSound.currentTime = 0;
+                        loseSound.play();
+                    }
+                }
+            }
+
+            spawnCounter++;
+            if (spawnCounter >= SPAWN_INTERVAL) {
+                spawnCounter = 0;
+                spawnObstacle();
+            }
+
+            frameCount++;
+            if (frameCount % 60 === 0) {
+                score++;
+            }
+        }
+
+        // ---------- RENDER ----------
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#1E90FF';
+            ctx.fillRect(playerX, playerY, PLAYER_SIZE, PLAYER_SIZE);
+
+            ctx.fillStyle = '#DC143C';
+            obstacles.forEach(obs => ctx.fillRect(obs.x, obs.y, obs.width, obs.height));
+
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 22px "Segoe UI"';
+            ctx.fillText(`Score: ${score}`, 10, 35);
+
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#FFD700';
+                ctx.font = 'bold 44px "Segoe UI"';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 35);
+
+                ctx.font = 'bold 26px "Segoe UI"';
+                ctx.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2 + 20);
+
+                ctx.font = '18px "Segoe UI"';
+                ctx.fillText('Press Enter or Tap to restart', canvas.width / 2, canvas.height / 2 + 60);
+                ctx.textAlign = 'left';
+            }
+        }
+
+        // ---------- GAME LOOP ----------
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+
+        // ---------- PWA SERVICE WORKER (optional, fails silently if missing) ----------
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(() => {});
+        }
+    </script>
+
+    <!-- Attribution for moodmode music (if required by the license) -->
+    <!-- Music: moodmode (No Copyright Music) -->
+</body>
+</html>
