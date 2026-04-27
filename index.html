@@ -1,4 +1,9 @@
-<!DOCTYPE html>
+
+      
+        
+
+           
+         <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -79,15 +84,22 @@
         <small>On mobile: tap left/right half of the screen to move</small>
     </div>
 
-    <!-- ========== GAME SCRIPT (all embedded, no external files) ========== -->
+    <!-- ========== GAME SCRIPT ========== -->
     <script>
-        // ---------- AUDIO ASSETS (filenames match your downloads) ----------
+        // ---------- IMPROVED AUDIO ASSETS ----------
         const bgMusic = new Audio('moodmode-no-copyright-music-201745.mp3');
         bgMusic.loop = true;
         bgMusic.volume = 0.25;
+        bgMusic.preload = 'auto';
+
+        // Log a warning if the file can't be loaded (e.g. wrong path)
+        bgMusic.addEventListener('error', () => {
+            console.warn('Background music could not be loaded. Check file path/format.');
+        });
 
         const loseSound = new Audio('freesound_community-080047_lose_funny_retro_video-game-80925.mp3');
         loseSound.volume = 0.7;
+        loseSound.preload = 'auto';
 
         // ---------- CANVAS & CONTEXT ----------
         const canvas = document.getElementById('gameCanvas');
@@ -98,7 +110,7 @@
         const PLAYER_SPEED = 10;
         const OBSTACLE_SIZE = 30;
         const OBSTACLE_SPEED = 5;
-        const SPAWN_INTERVAL = 30;        // frames between spawns (0.5 sec at 60fps)
+        const SPAWN_INTERVAL = 30;        // ~0.5 sec at 60fps
 
         // Game state
         let playerX = (canvas.width - PLAYER_SIZE) / 2;
@@ -113,21 +125,27 @@
         let leftPressed = false;
         let rightPressed = false;
 
-        // 🔧 Audio permission flag (prevents NotAllowedError)
-        let audioAllowed = false;   // false until user interacts
+        // Audio permission flag (prevents NotAllowedError)
+        let audioAllowed = false;
 
-        // ---------- START AUDIO ON FIRST INTERACTION ----------
+        // ---------- START AUDIO AFTER FIRST INTERACTION ----------
         function startAudio() {
             if (!audioAllowed) {
-                bgMusic.play().catch(() => {});
-                audioAllowed = true;    // unlock all sounds
+                // Play only when the audio is ready (prevents silent failure)
+                if (bgMusic.readyState >= 2) {
+                    bgMusic.play().catch(e => console.warn('Playback prevented:', e));
+                } else {
+                    bgMusic.addEventListener('canplay', () => {
+                        bgMusic.play().catch(e => console.warn('Playback prevented:', e));
+                    }, { once: true });
+                }
+                audioAllowed = true;
             }
         }
 
         // ---------- EVENT LISTENERS ----------
-        // Keyboard
         document.addEventListener('keydown', (e) => {
-            startAudio();   // unlock on first key press
+            startAudio();
             if (gameOver) {
                 if (e.key === 'Enter') restartGame();
                 return;
@@ -143,10 +161,10 @@
             if (e.key.startsWith('Arrow')) e.preventDefault();
         });
 
-        // Touch controls for mobile
+        // Touch controls
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            startAudio();   // unlock on first touch
+            startAudio();
             if (gameOver) {
                 restartGame();
                 return;
@@ -210,13 +228,12 @@
                     continue;
                 }
 
-                // Collision
+                // Collision detection
                 if (playerX < obs.x + obs.width &&
                     playerX + PLAYER_SIZE > obs.x &&
                     playerY < obs.y + obs.height &&
                     playerY + PLAYER_SIZE > obs.y) {
                     gameOver = true;
-                    // 🔧 Only play sound if audio is allowed
                     if (audioAllowed) {
                         loseSound.currentTime = 0;
                         loseSound.play();
@@ -240,16 +257,20 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // Player
             ctx.fillStyle = '#1E90FF';
             ctx.fillRect(playerX, playerY, PLAYER_SIZE, PLAYER_SIZE);
 
+            // Obstacles
             ctx.fillStyle = '#DC143C';
             obstacles.forEach(obs => ctx.fillRect(obs.x, obs.y, obs.width, obs.height));
 
+            // Score
             ctx.fillStyle = 'white';
             ctx.font = 'bold 22px "Segoe UI"';
             ctx.fillText(`Score: ${score}`, 10, 35);
 
+            // Game Over overlay
             if (gameOver) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -277,13 +298,11 @@
 
         gameLoop();
 
-        // ---------- PWA SERVICE WORKER (optional, fails silently if missing) ----------
+        // ---------- PWA SERVICE WORKER (optional) ----------
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js').catch(() => {});
         }
     </script>
 
-    <!-- Attribution for moodmode music (if required by the license) -->
-    <!-- Music: moodmode (No Copyright Music) -->
 </body>
 </html>
